@@ -3,6 +3,7 @@ from discord.ext import commands
 import csv
 import os
 import re
+from datetime import datetime  # ✅ AGGIUNTO
 
 # --- CONFIG ---
 CSV_FILE = 'fatture.csv'
@@ -112,10 +113,68 @@ async def totale(ctx, *, operaio: str):
                 totale_vendite += float(row['Totale'])
     await ctx.send(f"💼 **Totale vendite di {operaio}: ${totale_vendite:,.2f}**")
 
+# =========================
+# 🔥 SISTEMA LAVORO AGGIUNTO
+# =========================
+
+lavoro = {}
+
+@bot.command()
+async def inizio(ctx):
+    user_id = str(ctx.author.id)
+
+    if user_id in lavoro:
+        await ctx.send("⚠️ Hai già iniziato a lavorare!")
+        return
+
+    lavoro[user_id] = datetime.now()
+
+    embed = discord.Embed(
+        title="🟢 INIZIO LAVORO",
+        description=f"{ctx.author.mention} ha iniziato il turno",
+        color=discord.Color.green()
+    )
+
+    embed.add_field(name="👤 Utente", value=ctx.author.name, inline=False)
+    embed.add_field(name="🕒 Ora inizio", value=lavoro[user_id].strftime("%H:%M:%S"), inline=False)
+
+    await ctx.send(embed=embed)
+
+
+@bot.command()
+async def fine(ctx):
+    user_id = str(ctx.author.id)
+
+    if user_id not in lavoro:
+        await ctx.send("⚠️ Non hai iniziato a lavorare!")
+        return
+
+    inizio_time = lavoro[user_id]
+    fine_time = datetime.now()
+
+    durata = fine_time - inizio_time
+
+    ore = durata.seconds // 3600
+    minuti = (durata.seconds % 3600) // 60
+
+    embed = discord.Embed(
+        title="🔴 FINE LAVORO",
+        description=f"{ctx.author.mention} ha terminato il turno",
+        color=discord.Color.red()
+    )
+
+    embed.add_field(name="👤 Utente", value=ctx.author.name, inline=False)
+    embed.add_field(name="🟢 Inizio", value=inizio_time.strftime("%H:%M:%S"), inline=True)
+    embed.add_field(name="🔴 Fine", value=fine_time.strftime("%H:%M:%S"), inline=True)
+    embed.add_field(name="⏱ Durata", value=f"{ore}h {minuti}m", inline=False)
+
+    await ctx.send(embed=embed)
+
+    del lavoro[user_id]
+
 # --- AVVIO BOT ---
-# Usa variabile d'ambiente DISCORD_TOKEN per sicurezza
-import os
 TOKEN = os.getenv('DISCORD_TOKEN')
 if not TOKEN:
     raise ValueError("⚠️ Devi impostare la variabile d'ambiente DISCORD_TOKEN!")
+
 bot.run(TOKEN)
