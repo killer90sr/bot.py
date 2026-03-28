@@ -139,9 +139,13 @@ class LavoroView(discord.ui.View):
 
         lavoro[user_id] = datetime.now()
 
-        await interaction.response.send_message(
-            f"🟢 {interaction.user.mention} ha iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}"
-        )
+        await interaction.response.send_message("✅ Turno iniziato!", ephemeral=True)
+
+        log_channel = discord.utils.get(interaction.guild.text_channels, name="log-lavoro")
+        if log_channel:
+            await log_channel.send(
+                f"🟢 {interaction.user.mention} ha iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}"
+            )
 
     @discord.ui.button(label="🔴 Fine Lavoro", style=discord.ButtonStyle.red)
     async def fine(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -151,7 +155,7 @@ class LavoroView(discord.ui.View):
             await interaction.response.send_message("⚠️ Non hai iniziato!", ephemeral=True)
             return
 
-        await interaction.response.defer()  # ✅ FIX
+        await interaction.response.defer()
 
         inizio = lavoro[user_id]
         fine = datetime.now()
@@ -160,9 +164,13 @@ class LavoroView(discord.ui.View):
         ore = durata.seconds // 3600
         minuti = (durata.seconds % 3600) // 60
 
-        await interaction.followup.send(
-            f"🔴 {interaction.user.mention} ha finito\n⏱ {ore}h {minuti}m"
-        )
+        await interaction.followup.send("✅ Turno terminato!", ephemeral=True)
+
+        log_channel = discord.utils.get(interaction.guild.text_channels, name="log-lavoro")
+        if log_channel:
+            await log_channel.send(
+                f"🔴 {interaction.user.mention} ha finito\n⏱ {ore}h {minuti}m"
+            )
 
         del lavoro[user_id]
 
