@@ -4,17 +4,9 @@ import csv
 import os
 import re
 
-# Intents
-intents = discord.Intents.default()
-intents.message_content = True
-intents.messages = True
-
-bot = commands.Bot(command_prefix='/', intents=intents)
-
+# --- CONFIG ---
 CSV_FILE = 'fatture.csv'
-CANALE_FATTURE = 'fatture'  # nome del canale dove gli operai scrivono
-
-# Prezzi fissi dei prodotti
+CANALE_FATTURE = 'fatture'  # Nome del canale dove gli operai scrivono
 PREZZI = {
     '9mm': 25000,
     'sns': 14000,
@@ -23,41 +15,42 @@ PREZZI = {
     'mazza': 8000
 }
 
-# Crea CSV se non esiste
+# --- INTENTS ---
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='/', intents=intents)
+
+# --- CREA CSV SE NON ESISTE ---
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, 'w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow(['Operaio', 'Prodotto', 'Quantita', 'Prezzo_unitario', 'Totale', 'Guadagno'])
 
-# Funzione per pulire e normalizzare i nomi
+# --- FUNZIONI ---
 def pulisci_nome(nome):
-    # Rimuove spazi iniziali/finali e caratteri non alfanumerici (tranne spazi)
     nome = nome.strip()
     nome = re.sub(r'[^\w\s]', '', nome, flags=re.UNICODE)
     return nome.lower()
 
-# Funzione per registrare la vendita
 def registra_vendita(operaio, prodotto, quantita):
     prezzo_unitario = PREZZI[prodotto]
     totale = prezzo_unitario * quantita
-    guadagno = totale * 0.05  # 5% guadagno operaio
+    guadagno = totale * 0.05
     with open(CSV_FILE, 'a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow([operaio, prodotto, quantita, prezzo_unitario, totale, guadagno])
     return totale, guadagno
 
-# Evento per i messaggi
+# --- EVENTO MESSAGGI ---
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
 
-    # Ignora comandi normali
     if message.content.startswith('/'):
         await bot.process_commands(message)
         return
 
-    # Solo nel canale giusto
     if message.channel.name == CANALE_FATTURE:
         parts = message.content.split()
         if len(parts) < 2:
@@ -75,7 +68,6 @@ async def on_message(message):
             await message.channel.send(f"❌ Prodotto non valido! Prodotti validi: {', '.join(PREZZI.keys())}")
             return
 
-        # Nome operaio può essere composto da più parole e viene pulito
         nome_operaio_raw = ' '.join(parts[:-2])
         operaio = pulisci_nome(nome_operaio_raw)
 
@@ -91,7 +83,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# Comando per vedere guadagno totale
+# --- COMANDI ---
 @bot.command()
 async def guadagno(ctx, *, operaio: str):
     operaio_clean = pulisci_nome(operaio)
@@ -106,7 +98,6 @@ async def guadagno(ctx, *, operaio: str):
                 totale_guadagno += float(row['Guadagno'])
     await ctx.send(f"💰 **Guadagno totale di {operaio}: ${totale_guadagno:,.2f}**")
 
-# Comando per vedere totale vendite
 @bot.command()
 async def totale(ctx, *, operaio: str):
     operaio_clean = pulisci_nome(operaio)
@@ -121,5 +112,10 @@ async def totale(ctx, *, operaio: str):
                 totale_vendite += float(row['Totale'])
     await ctx.send(f"💼 **Totale vendite di {operaio}: ${totale_vendite:,.2f}**")
 
-# Avvio bot - inserisci qui il tuo token
-bot.run(token)
+# --- AVVIO BOT ---
+# Usa variabile d'ambiente DISCORD_TOKEN per sicurezza
+import os
+TOKEN = os.getenv('DISCORD_TOKEN')
+if not TOKEN:
+    raise ValueError("⚠️ Devi impostare la variabile d'ambiente DISCORD_TOKEN!")
+bot.run(TOKEN)
