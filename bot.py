@@ -5,21 +5,24 @@ import os
 import re
 from datetime import datetime
 
-# CONFIG
+# --- CONFIG ---
 CSV_FILE = 'fatture.csv'
 CANALE_FATTURE = 'fatture'
 
 PREZZI = {
     '9mm': 25000,
     'sns': 14000,
-    'munizioni': 25
+    'munizioni': 25,
+    'coltello': 8000,
+    'mazza': 8000
 }
 
+# --- BOT ---
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='/', intents=intents)
 
-# CREA CSV
+# --- CREA CSV ---
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
@@ -41,11 +44,12 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # IMPORTANTE per far funzionare i comandi
+    # COMANDI
     if message.content.startswith('/'):
         await bot.process_commands(message)
         return
 
+    # FATTURE
     if message.channel.name == CANALE_FATTURE:
         parts = message.content.split()
 
@@ -71,7 +75,7 @@ async def on_message(message):
             writer = csv.writer(f)
             writer.writerow([pulisci(nome), prodotto, quantita, totale])
 
-        await message.channel.send(f"💼 Salvato: {totale}")
+        await message.channel.send(f"💼 Vendita salvata: {totale}")
 
     await bot.process_commands(message)
 
@@ -118,7 +122,7 @@ class LavoroView(discord.ui.View):
 
         del lavoro[user_id]
 
-# COMANDO PER CREARE PANNELLO
+# --- COMANDO PANNELLO ---
 @bot.command()
 async def pannello(ctx):
     embed = discord.Embed(
