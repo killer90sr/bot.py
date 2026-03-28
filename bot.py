@@ -8,6 +8,7 @@ from datetime import datetime
 # --- CONFIG ---
 CSV_FILE = 'fatture.csv'
 CANALE_FATTURE = 'fatture'
+CANALE_LAVORO = 'inizio-fine-lavoro'
 CANALE_LOG = 'log-lavoro'
 
 PREZZI = {
@@ -24,28 +25,29 @@ bot = commands.Bot(command_prefix='/', intents=intents)
 
 # --- CREA CSV ---
 if not os.path.exists(CSV_FILE):
-    with open(CSV_FILE, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
+    with open(CSV_FILE, 'w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
         writer.writerow(['Operaio', 'Prodotto', 'Quantita', 'Totale', 'Guadagno'])
 
-def pulisci(nome):
+# --- UTILS ---
+def pulisci_nome(nome):
     return re.sub(r'[^\w\s]', '', nome).lower()
 
-# ------------------------
-# EVENTI
-# ------------------------
+def registra_vendita(operaio, prodotto, quantita):
+    prezzo = PREZZI[prodotto]
+    totale = prezzo * quantita
+    guadagno = totale * 0.05
 
-@bot.event
-async def on_ready():
-    print(f"Online come {bot.user}")
+    with open(CSV_FILE, 'a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow([operaio, prodotto, quantita, totale, guadagno])
 
+    return totale, guadagno
+
+# --- VENDITE ---
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
-        return
-
-    if message.content.startswith('/'):
-        await bot.process_commands(message)
         return
 
     if message.channel.name == CANALE_FATTURE:
@@ -54,29 +56,23 @@ async def on_message(message):
         if len(parts) < 3:
             return
 
-        nome = ' '.join(parts[:-2])
-        prodotto = parts[-2].lower()
-
         try:
             quantita = int(parts[-1])
         except:
-            await message.channel.send("❌ Quantità non valida!")
             return
 
+        prodotto = parts[-2].lower()
         if prodotto not in PREZZI:
             await message.channel.send("❌ Prodotto non valido!")
             return
 
-        totale = PREZZI[prodotto] * quantita
-        guadagno = totale * 0.05
+        nome = ' '.join(parts[:-2])
+        operaio = pulisci_nome(nome)
 
-        with open(CSV_FILE, 'a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow([pulisci(nome), prodotto, quantita, totale, guadagno])
+        totale, guadagno = registra_vendita(operaio, prodotto, quantita)
 
-        # ✅ FORMATO COME PRIMA
         await message.channel.send(
-            f"💼 **Vendita registrata!**\n"
+            f"💼 Vendita registrata!\n"
             f"Operaio: {nome}\n"
             f"Totale: ${totale:,.2f}\n"
             f"Guadagno: ${guadagno:,.2f}"
@@ -84,10 +80,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# ------------------------
-# SISTEMA LAVORO
-# ------------------------
-
+# --- LAVORO ---
 lavoro = {}
 
 class LavoroView(discord.ui.View):
@@ -103,14 +96,12 @@ class LavoroView(discord.ui.View):
             return
 
         lavoro[user_id] = datetime.now()
+        await interaction.response.send_message("✅ Turno iniziato!", ephemeral=True)
 
-        # ❌ niente messaggi nel canale
-        await interaction.response.send_message("✅ Lavoro iniziato!", ephemeral=True)
-
-        # ✅ LOG
-        log = discord.utils.get(interaction.guild.text_channels, name=CANALE_LOG)
-        if log:
-            await log.send(f"🟢 {interaction.user} ha iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}")
+        # LOG
+        for channel in interaction.guild.text_channels:
+            if channel.name == CANALE_LOG:
+                await channel.send(f"🟢 {interaction.user.mention} ha iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}")
 
     @discord.ui.button(label="🔴 Fine Lavoro", style=discord.ButtonStyle.red)
     async def fine(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -127,31 +118,41 @@ class LavoroView(discord.ui.View):
         ore = durata.seconds // 3600
         minuti = (durata.seconds % 3600) // 60
 
-        await interaction.response.send_message("⏹ Turno finito!", ephemeral=True)
+        await interaction.response.send_message(
+            f"⏱ Hai lavorato {ore}h {minuti}m",
+            ephemeral=True
+        )
 
-        # ✅ LOG
-        log = discord.utils.get(interaction.guild.text_channels, name=CANALE_LOG)
-        if log:
-            await log.send(
-                f"🔴 {interaction.user} ha finito\n⏱ {ore}h {minuti}m"
-            )
+        # LOG
+        for channel in interaction.guild.text_channels:
+            if channel.name == CANALE_LOG:
+                await channel.send(f"🔴 {interaction.user.mention} ha finito\n⏱ {ore}h {minuti}m")
 
         del lavoro[user_id]
 
-# --- PANNELLO ---
-@bot.command()
-async def pannello(ctx):
-    embed = discord.Embed(
-        title="📋 TIMBRATURA LAVORO",
-        description="Clicca i bottoni sotto",
-        color=discord.Color.blue()
-    )
+# --- PANNELLO AUTOMATICO ---
+@bot.event
+async def on_ready():
+    print(f"Online come {bot.user}")
 
-    await ctx.send(embed=embed, view=LavoroView())
+    for guild in bot.guilds:
+        for channel in guild.text_channels:
+            if channel.name == CANALE_LAVORO:
 
-# ------------------------
-# AVVIO
-# ------------------------
+                # controlla se già esiste pannello
+                async for msg in channel.history(limit=20):
+                    if msg.author == bot.user:
+                        return
 
+                embed = discord.Embed(
+                    title="📋 TIMBRATURA LAVORO",
+                    description="Clicca i bottoni sotto",
+                    color=discord.Color.blue()
+                )
+
+                await channel.send(embed=embed, view=LavoroView())
+                print("Pannello creato!")
+
+# --- AVVIO ---
 TOKEN = os.getenv("DISCORD_TOKEN")
 bot.run(TOKEN)
