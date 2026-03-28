@@ -8,6 +8,7 @@ from datetime import datetime
 # --- CONFIG ---
 CSV_FILE = 'fatture.csv'
 CANALE_FATTURE = 'fatture'
+CANALE_LOG = 'log-lavoro'
 
 PREZZI = {
     '9mm': 25000,
@@ -17,7 +18,6 @@ PREZZI = {
     'mazza': 8000
 }
 
-# --- BOT ---
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='/', intents=intents)
@@ -26,7 +26,7 @@ bot = commands.Bot(command_prefix='/', intents=intents)
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['Operaio', 'Prodotto', 'Quantita', 'Totale'])
+        writer.writerow(['Operaio', 'Prodotto', 'Quantita', 'Totale', 'Guadagno'])
 
 def pulisci(nome):
     return re.sub(r'[^\w\s]', '', nome).lower()
@@ -44,12 +44,10 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # COMANDI
     if message.content.startswith('/'):
         await bot.process_commands(message)
         return
 
-    # FATTURE
     if message.channel.name == CANALE_FATTURE:
         parts = message.content.split()
 
@@ -70,12 +68,19 @@ async def on_message(message):
             return
 
         totale = PREZZI[prodotto] * quantita
+        guadagno = totale * 0.05
 
         with open(CSV_FILE, 'a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow([pulisci(nome), prodotto, quantita, totale])
+            writer.writerow([pulisci(nome), prodotto, quantita, totale, guadagno])
 
-        await message.channel.send(f"💼 Vendita salvata: {totale}")
+        # ✅ FORMATO COME PRIMA
+        await message.channel.send(
+            f"💼 **Vendita registrata!**\n"
+            f"Operaio: {nome}\n"
+            f"Totale: ${totale:,.2f}\n"
+            f"Guadagno: ${guadagno:,.2f}"
+        )
 
     await bot.process_commands(message)
 
@@ -98,7 +103,14 @@ class LavoroView(discord.ui.View):
             return
 
         lavoro[user_id] = datetime.now()
-        await interaction.response.send_message("✅ Turno iniziato!", ephemeral=True)
+
+        # ❌ niente messaggi nel canale
+        await interaction.response.send_message("✅ Lavoro iniziato!", ephemeral=True)
+
+        # ✅ LOG
+        log = discord.utils.get(interaction.guild.text_channels, name=CANALE_LOG)
+        if log:
+            await log.send(f"🟢 {interaction.user} ha iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}")
 
     @discord.ui.button(label="🔴 Fine Lavoro", style=discord.ButtonStyle.red)
     async def fine(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -115,14 +127,18 @@ class LavoroView(discord.ui.View):
         ore = durata.seconds // 3600
         minuti = (durata.seconds % 3600) // 60
 
-        await interaction.response.send_message(
-            f"⏱ Hai lavorato {ore}h {minuti}m",
-            ephemeral=True
-        )
+        await interaction.response.send_message("⏹ Turno finito!", ephemeral=True)
+
+        # ✅ LOG
+        log = discord.utils.get(interaction.guild.text_channels, name=CANALE_LOG)
+        if log:
+            await log.send(
+                f"🔴 {interaction.user} ha finito\n⏱ {ore}h {minuti}m"
+            )
 
         del lavoro[user_id]
 
-# --- COMANDO PANNELLO ---
+# --- PANNELLO ---
 @bot.command()
 async def pannello(ctx):
     embed = discord.Embed(
