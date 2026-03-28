@@ -171,7 +171,7 @@ async def on_ready():
 
     for guild in bot.guilds:
         for channel in guild.text_channels:
-            if channel.name == CANALE_LAVORO:
+            if CANALE_LAVORO not in ctx.channel.name:
 
                 # controlla se già esiste
                 async for msg in channel.history(limit=20):
