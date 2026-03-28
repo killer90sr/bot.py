@@ -7,8 +7,8 @@ from datetime import datetime
 
 # --- CONFIG ---
 CSV_FILE = 'fatture.csv'
-CANALE_FATTURE = 'fatture'  # Nome del canale dove gli operai scrivono
-CANALE_LAVORO = 'inizio-fine-lavoro'  # ✅ NUOVO CANALE LAVORO
+CANALE_FATTURE = 'fatture'
+CANALE_LAVORO = 'inizio-fine-lavoro'  # 👈 CANALE LAVORO
 
 PREZZI = {
     '9mm': 25000,
@@ -116,71 +116,87 @@ async def totale(ctx, *, operaio: str):
     await ctx.send(f"💼 **Totale vendite di {operaio}: ${totale_vendite:,.2f}**")
 
 # =========================
-# 🔥 SISTEMA LAVORO
+# 🔥 SISTEMA LAVORO BOTTONI
 # =========================
 
 lavoro = {}
 
+class LavoroView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🟢 Inizio Lavoro", style=discord.ButtonStyle.green)
+    async def inizio_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.channel.name != CANALE_LAVORO:
+            await interaction.response.send_message("❌ Usa nel canale lavoro!", ephemeral=True)
+            return
+
+        user_id = str(interaction.user.id)
+
+        if user_id in lavoro:
+            await interaction.response.send_message("⚠️ Hai già iniziato!", ephemeral=True)
+            return
+
+        lavoro[user_id] = datetime.now()
+
+        embed = discord.Embed(
+            title="🟢 INIZIO LAVORO",
+            description=f"{interaction.user.mention} ha iniziato il turno",
+            color=discord.Color.green()
+        )
+
+        embed.add_field(name="👤 Utente", value=interaction.user.name, inline=False)
+        embed.add_field(name="🕒 Ora inizio", value=lavoro[user_id].strftime("%H:%M:%S"), inline=False)
+
+        await interaction.response.send_message(embed=embed)
+
+    @discord.ui.button(label="🔴 Fine Lavoro", style=discord.ButtonStyle.red)
+    async def fine_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.channel.name != CANALE_LAVORO:
+            await interaction.response.send_message("❌ Usa nel canale lavoro!", ephemeral=True)
+            return
+
+        user_id = str(interaction.user.id)
+
+        if user_id not in lavoro:
+            await interaction.response.send_message("⚠️ Non hai iniziato!", ephemeral=True)
+            return
+
+        inizio_time = lavoro[user_id]
+        fine_time = datetime.now()
+
+        durata = fine_time - inizio_time
+        ore = durata.seconds // 3600
+        minuti = (durata.seconds % 3600) // 60
+
+        embed = discord.Embed(
+            title="🔴 FINE LAVORO",
+            description=f"{interaction.user.mention} ha terminato il turno",
+            color=discord.Color.red()
+        )
+
+        embed.add_field(name="👤 Utente", value=interaction.user.name, inline=False)
+        embed.add_field(name="🟢 Inizio", value=inizio_time.strftime("%H:%M:%S"), inline=True)
+        embed.add_field(name="🔴 Fine", value=fine_time.strftime("%H:%M:%S"), inline=True)
+        embed.add_field(name="⏱ Durata", value=f"{ore}h {minuti}m", inline=False)
+
+        await interaction.response.send_message(embed=embed)
+
+        del lavoro[user_id]
+
 @bot.command()
-async def inizio(ctx):
+async def pannello(ctx):
     if ctx.channel.name != CANALE_LAVORO:
-        await ctx.send("❌ Usa questo comando nel canale lavoro!")
+        await ctx.send("❌ Usa nel canale lavoro!")
         return
-
-    user_id = str(ctx.author.id)
-
-    if user_id in lavoro:
-        await ctx.send("⚠️ Hai già iniziato a lavorare!")
-        return
-
-    lavoro[user_id] = datetime.now()
 
     embed = discord.Embed(
-        title="🟢 INIZIO LAVORO",
-        description=f"{ctx.author.mention} ha iniziato il turno",
-        color=discord.Color.green()
+        title="📋 TIMBRATURA LAVORO",
+        description="Clicca i bottoni sotto per iniziare o finire il turno",
+        color=discord.Color.blue()
     )
 
-    embed.add_field(name="👤 Utente", value=ctx.author.name, inline=False)
-    embed.add_field(name="🕒 Ora inizio", value=lavoro[user_id].strftime("%H:%M:%S"), inline=False)
-
-    await ctx.send(embed=embed)
-
-
-@bot.command()
-async def fine(ctx):
-    if ctx.channel.name != CANALE_LAVORO:
-        await ctx.send("❌ Usa questo comando nel canale lavoro!")
-        return
-
-    user_id = str(ctx.author.id)
-
-    if user_id not in lavoro:
-        await ctx.send("⚠️ Non hai iniziato a lavorare!")
-        return
-
-    inizio_time = lavoro[user_id]
-    fine_time = datetime.now()
-
-    durata = fine_time - inizio_time
-
-    ore = durata.seconds // 3600
-    minuti = (durata.seconds % 3600) // 60
-
-    embed = discord.Embed(
-        title="🔴 FINE LAVORO",
-        description=f"{ctx.author.mention} ha terminato il turno",
-        color=discord.Color.red()
-    )
-
-    embed.add_field(name="👤 Utente", value=ctx.author.name, inline=False)
-    embed.add_field(name="🟢 Inizio", value=inizio_time.strftime("%H:%M:%S"), inline=True)
-    embed.add_field(name="🔴 Fine", value=fine_time.strftime("%H:%M:%S"), inline=True)
-    embed.add_field(name="⏱ Durata", value=f"{ore}h {minuti}m", inline=False)
-
-    await ctx.send(embed=embed)
-
-    del lavoro[user_id]
+    await ctx.send(embed=embed, view=LavoroView())
 
 # --- AVVIO BOT ---
 TOKEN = os.getenv('DISCORD_TOKEN')
