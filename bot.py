@@ -134,13 +134,15 @@ class LavoroView(discord.ui.View):
         user_id = str(interaction.user.id)
 
         if user_id in lavoro:
-            await interaction.response.send_message("⚠️ Hai già iniziato!", ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             return
 
         lavoro[user_id] = datetime.now()
 
-        await interaction.response.send_message("✅ Turno iniziato!", ephemeral=True)
+        # ❌ NON manda messaggi nel canale
+        await interaction.response.defer(ephemeral=True)
 
+        # ✅ manda SOLO nel log
         log_channel = discord.utils.get(interaction.guild.text_channels, name="log-lavoro")
         if log_channel:
             await log_channel.send(
@@ -152,10 +154,10 @@ class LavoroView(discord.ui.View):
         user_id = str(interaction.user.id)
 
         if user_id not in lavoro:
-            await interaction.response.send_message("⚠️ Non hai iniziato!", ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             return
 
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
 
         inizio = lavoro[user_id]
         fine = datetime.now()
@@ -164,8 +166,7 @@ class LavoroView(discord.ui.View):
         ore = durata.seconds // 3600
         minuti = (durata.seconds % 3600) // 60
 
-        await interaction.followup.send("✅ Turno terminato!", ephemeral=True)
-
+        # ✅ manda SOLO nel log
         log_channel = discord.utils.get(interaction.guild.text_channels, name="log-lavoro")
         if log_channel:
             await log_channel.send(
