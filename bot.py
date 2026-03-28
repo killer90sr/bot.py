@@ -9,6 +9,7 @@ from datetime import datetime
 CSV_FILE = 'fatture.csv'
 CANALE_FATTURE = 'fatture'
 CANALE_LAVORO = 'inizio-fine-lavoro'
+CANALE_LOG = 'log-lavoro'  # ✅ AGGIUNTO
 
 PREZZI = {
     '9mm': 25000,
@@ -120,7 +121,7 @@ async def totale(ctx, *, operaio: str):
     await ctx.send(f"💼 Totale: ${totale_vendite:,.2f}")
 
 # =========================
-# 🔥 SISTEMA LAVORO BOTTONI
+# 🔥 SISTEMA LAVORO
 # =========================
 
 lavoro = {}
@@ -143,6 +144,13 @@ class LavoroView(discord.ui.View):
             f"🟢 {interaction.user.mention} ha iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}"
         )
 
+        # ✅ LOG
+        log_channel = discord.utils.get(interaction.guild.text_channels, name=CANALE_LOG)
+        if log_channel:
+            await log_channel.send(
+                f"🟢 INIZIO | {interaction.user} alle {lavoro[user_id].strftime('%H:%M:%S')}"
+            )
+
     @discord.ui.button(label="🔴 Fine Lavoro", style=discord.ButtonStyle.red)
     async def fine(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_id = str(interaction.user.id)
@@ -162,33 +170,29 @@ class LavoroView(discord.ui.View):
             f"🔴 {interaction.user.mention} ha finito\n⏱ {ore}h {minuti}m"
         )
 
+        # ✅ LOG
+        log_channel = discord.utils.get(interaction.guild.text_channels, name=CANALE_LOG)
+        if log_channel:
+            await log_channel.send(
+                f"🔴 FINE | {interaction.user} | Durata: {ore}h {minuti}m"
+            )
+
         del lavoro[user_id]
 
-# --- PANNELLO AUTOMATICO ---
-@bot.event
-async def on_ready():
-    print(f"Online come {bot.user}")
+# --- COMANDO PANNELLO ---
+@bot.command()
+async def pannello(ctx):
+    if ctx.channel.name != CANALE_LAVORO:
+        await ctx.send("❌ Usa nel canale lavoro!")
+        return
 
-    for guild in bot.guilds:
-        for channel in guild.text_channels:
-            if channel.name == CANALE_LAVORO:
+    embed = discord.Embed(
+        title="📋 TIMBRATURA LAVORO",
+        description="Clicca i bottoni sotto per iniziare o finire il turno",
+        color=discord.Color.blue()
+    )
 
-                trovato = False
-
-                async for msg in channel.history(limit=20):
-                    if msg.author == bot.user:
-                        trovato = True
-                        break
-
-                if not trovato:
-                    embed = discord.Embed(
-                        title="📋 TIMBRATURA LAVORO",
-                        description="Clicca i bottoni sotto per iniziare o finire il turno",
-                        color=discord.Color.blue()
-                    )
-
-                    await channel.send(embed=embed, view=LavoroView())
-                    print("✅ Pannello creato!")
+    await ctx.send(embed=embed, view=LavoroView())
 
 # --- AVVIO ---
 TOKEN = os.getenv('DISCORD_TOKEN')
