@@ -9,7 +9,6 @@ from datetime import datetime
 CSV_FILE = 'fatture.csv'
 CANALE_FATTURE = 'fatture'
 CANALE_LAVORO = 'inizio-fine-lavoro'
-CANALE_LOG = 'log-lavoro'
 
 PREZZI = {
     '9mm': 25000,
@@ -132,37 +131,27 @@ class LavoroView(discord.ui.View):
 
     @discord.ui.button(label="🟢 Inizio Lavoro", style=discord.ButtonStyle.green)
     async def inizio(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-
         user_id = str(interaction.user.id)
 
         if user_id in lavoro:
-            await interaction.followup.send("⚠️ Hai già iniziato!", ephemeral=True)
+            await interaction.response.send_message("⚠️ Hai già iniziato!", ephemeral=True)
             return
 
         lavoro[user_id] = datetime.now()
 
-        await interaction.followup.send(
-            f"🟢 Hai iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}",
-            ephemeral=True
+        await interaction.response.send_message(
+            f"🟢 {interaction.user.mention} ha iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}"
         )
-
-        # LOG
-        log_channel = discord.utils.get(interaction.guild.text_channels, name=CANALE_LOG)
-        if log_channel:
-            await log_channel.send(
-                f"🟢 INIZIO | {interaction.user} alle {lavoro[user_id].strftime('%H:%M:%S')}"
-            )
 
     @discord.ui.button(label="🔴 Fine Lavoro", style=discord.ButtonStyle.red)
     async def fine(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-
         user_id = str(interaction.user.id)
 
         if user_id not in lavoro:
-            await interaction.followup.send("⚠️ Non hai iniziato!", ephemeral=True)
+            await interaction.response.send_message("⚠️ Non hai iniziato!", ephemeral=True)
             return
+
+        await interaction.response.defer()  # ✅ FIX
 
         inizio = lavoro[user_id]
         fine = datetime.now()
@@ -172,18 +161,10 @@ class LavoroView(discord.ui.View):
         minuti = (durata.seconds % 3600) // 60
 
         await interaction.followup.send(
-            f"🔴 Hai finito\n⏱ {ore}h {minuti}m",
-            ephemeral=True
+            f"🔴 {interaction.user.mention} ha finito\n⏱ {ore}h {minuti}m"
         )
 
-        # LOG
-        log_channel = discord.utils.get(interaction.guild.text_channels, name=CANALE_LOG)
-        if log_channel:
-            await log_channel.send(
-                f"🔴 FINE | {interaction.user} | Durata: {ore}h {minuti}m"
-            )
-
-        lavoro.pop(user_id, None)
+        del lavoro[user_id]
 
 # --- PANNELLO AUTOMATICO ---
 @bot.event
@@ -195,7 +176,6 @@ async def on_ready():
             if channel.name == CANALE_LAVORO:
 
                 trovato = False
-
                 async for msg in channel.history(limit=20):
                     if msg.author == bot.user:
                         trovato = True
@@ -209,6 +189,7 @@ async def on_ready():
                     )
 
                     await channel.send(embed=embed, view=LavoroView())
+                    print("Pannello creato!")
 
 # --- AVVIO ---
 TOKEN = os.getenv('DISCORD_TOKEN')
