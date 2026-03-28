@@ -29,7 +29,7 @@ if not os.path.exists(CSV_FILE):
         writer = csv.writer(file)
         writer.writerow(['Operaio', 'Prodotto', 'Quantita', 'Totale', 'Guadagno'])
 
-# --- UTILS ---
+# --- FUNZIONI ---
 def pulisci_nome(nome):
     return re.sub(r'[^\w\s]', '', nome).lower()
 
@@ -44,7 +44,7 @@ def registra_vendita(operaio, prodotto, quantita):
 
     return totale, guadagno
 
-# --- VENDITE ---
+# --- EVENTO MESSAGGI ---
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -74,13 +74,18 @@ async def on_message(message):
         await message.channel.send(
             f"💼 Vendita registrata!\n"
             f"Operaio: {nome}\n"
+            f"Prodotto: {prodotto}\n"
+            f"Quantità: {quantita}\n"
             f"Totale: ${totale:,.2f}\n"
             f"Guadagno: ${guadagno:,.2f}"
         )
 
     await bot.process_commands(message)
 
-# --- LAVORO ---
+# =========================
+# 🔥 SISTEMA LAVORO
+# =========================
+
 lavoro = {}
 
 class LavoroView(discord.ui.View):
@@ -96,12 +101,16 @@ class LavoroView(discord.ui.View):
             return
 
         lavoro[user_id] = datetime.now()
-        await interaction.response.send_message("✅ Turno iniziato!", ephemeral=True)
 
-        # LOG
+        # ❌ niente messaggi nel canale
+        await interaction.response.defer()
+
+        # ✅ log
         for channel in interaction.guild.text_channels:
             if channel.name == CANALE_LOG:
-                await channel.send(f"🟢 {interaction.user.mention} ha iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}")
+                await channel.send(
+                    f"🟢 {interaction.user.mention} ha iniziato alle {lavoro[user_id].strftime('%H:%M:%S')}"
+                )
 
     @discord.ui.button(label="🔴 Fine Lavoro", style=discord.ButtonStyle.red)
     async def fine(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -118,15 +127,15 @@ class LavoroView(discord.ui.View):
         ore = durata.seconds // 3600
         minuti = (durata.seconds % 3600) // 60
 
-        await interaction.response.send_message(
-            f"⏱ Hai lavorato {ore}h {minuti}m",
-            ephemeral=True
-        )
+        # ❌ niente messaggi nel canale
+        await interaction.response.defer()
 
-        # LOG
+        # ✅ log
         for channel in interaction.guild.text_channels:
             if channel.name == CANALE_LOG:
-                await channel.send(f"🔴 {interaction.user.mention} ha finito\n⏱ {ore}h {minuti}m")
+                await channel.send(
+                    f"🔴 {interaction.user.mention} ha finito\n⏱ {ore}h {minuti}m"
+                )
 
         del lavoro[user_id]
 
@@ -139,10 +148,15 @@ async def on_ready():
         for channel in guild.text_channels:
             if channel.name == CANALE_LAVORO:
 
-                # controlla se già esiste pannello
+                trovato = False
+
                 async for msg in channel.history(limit=20):
                     if msg.author == bot.user:
-                        return
+                        trovato = True
+                        break
+
+                if trovato:
+                    continue
 
                 embed = discord.Embed(
                     title="📋 TIMBRATURA LAVORO",
@@ -152,6 +166,29 @@ async def on_ready():
 
                 await channel.send(embed=embed, view=LavoroView())
                 print("Pannello creato!")
+
+# --- COMANDO GUADAGNO ---
+@bot.command()
+async def guadagno(ctx, *, operaio: str):
+    if ctx.channel.name != "totale-fatture":
+        return
+
+    operaio = pulisci_nome(operaio)
+    totale = 0
+
+    if not os.path.exists(CSV_FILE):
+        await ctx.send("❌ Nessuna vendita.")
+        return
+
+    with open(CSV_FILE, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        next(reader)
+
+        for row in reader:
+            if pulisci_nome(row[0]) == operaio:
+                totale += float(row[4])
+
+    await ctx.send(f"💰 Guadagno totale: ${totale:,.2f}")
 
 # --- AVVIO ---
 TOKEN = os.getenv("DISCORD_TOKEN")
