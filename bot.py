@@ -3,11 +3,13 @@ from discord.ext import commands
 import csv
 import os
 import re
-from datetime import datetime  # ✅ AGGIUNTO
+from datetime import datetime
 
 # --- CONFIG ---
 CSV_FILE = 'fatture.csv'
 CANALE_FATTURE = 'fatture'  # Nome del canale dove gli operai scrivono
+CANALE_LAVORO = 'inizio-fine-lavoro'  # ✅ NUOVO CANALE LAVORO
+
 PREZZI = {
     '9mm': 25000,
     'sns': 14000,
@@ -114,13 +116,17 @@ async def totale(ctx, *, operaio: str):
     await ctx.send(f"💼 **Totale vendite di {operaio}: ${totale_vendite:,.2f}**")
 
 # =========================
-# 🔥 SISTEMA LAVORO AGGIUNTO
+# 🔥 SISTEMA LAVORO
 # =========================
 
 lavoro = {}
 
 @bot.command()
 async def inizio(ctx):
+    if ctx.channel.name != CANALE_LAVORO:
+        await ctx.send("❌ Usa questo comando nel canale lavoro!")
+        return
+
     user_id = str(ctx.author.id)
 
     if user_id in lavoro:
@@ -143,6 +149,10 @@ async def inizio(ctx):
 
 @bot.command()
 async def fine(ctx):
+    if ctx.channel.name != CANALE_LAVORO:
+        await ctx.send("❌ Usa questo comando nel canale lavoro!")
+        return
+
     user_id = str(ctx.author.id)
 
     if user_id not in lavoro:
