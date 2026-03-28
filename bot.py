@@ -60,4 +60,54 @@ async def on_message(message):
     await bot.process_commands(message)
 
 TOKEN = os.getenv("DISCORD_TOKEN")
+from datetime import datetime
+
+lavoro = {}
+
+class LavoroView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🟢 Inizio Lavoro", style=discord.ButtonStyle.green)
+    async def inizio(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = str(interaction.user.id)
+
+        if user_id in lavoro:
+            await interaction.response.send_message("⚠️ Hai già iniziato!", ephemeral=True)
+            return
+
+        lavoro[user_id] = datetime.now()
+        await interaction.response.send_message("✅ Turno iniziato!", ephemeral=True)
+
+    @discord.ui.button(label="🔴 Fine Lavoro", style=discord.ButtonStyle.red)
+    async def fine(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = str(interaction.user.id)
+
+        if user_id not in lavoro:
+            await interaction.response.send_message("⚠️ Non hai iniziato!", ephemeral=True)
+            return
+
+        start = lavoro[user_id]
+        end = datetime.now()
+        durata = end - start
+
+        ore = durata.seconds // 3600
+        minuti = (durata.seconds % 3600) // 60
+
+        await interaction.response.send_message(
+            f"⏱ Hai lavorato {ore}h {minuti}m", 
+            ephemeral=True
+        )
+
+        del lavoro[user_id]
+
+@bot.command()
+async def pannello(ctx):
+    embed = discord.Embed(
+        title="📋 TIMBRATURA LAVORO",
+        description="Clicca i bottoni sotto",
+        color=discord.Color.blue()
+    )
+
+    await ctx.send(embed=embed, view=LavoroView())
 bot.run(TOKEN)
