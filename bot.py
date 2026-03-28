@@ -120,7 +120,7 @@ async def totale(ctx, *, operaio: str):
     await ctx.send(f"💼 Totale: ${totale_vendite:,.2f}")
 
 # =========================
-# 🔥 SISTEMA LAVORO
+# 🔥 SISTEMA LAVORO BOTTONI
 # =========================
 
 lavoro = {}
@@ -171,21 +171,21 @@ async def on_ready():
 
     for guild in bot.guilds:
         for channel in guild.text_channels:
-            if CANALE_LAVORO not in ctx.channel.name:
+            if channel.name == CANALE_LAVORO:
 
-                # controlla se già esiste
+                # controlla se esiste già
                 async for msg in channel.history(limit=20):
                     if msg.author == bot.user:
                         return
 
                 embed = discord.Embed(
                     title="📋 TIMBRATURA LAVORO",
-                    description="Clicca i bottoni sotto",
+                    description="Clicca i bottoni sotto per iniziare o finire il turno",
                     color=discord.Color.blue()
                 )
 
                 await channel.send(embed=embed, view=LavoroView())
-                print("Pannello creato!")
+                print("✅ Pannello creato!")
 
 # --- AVVIO ---
 TOKEN = os.getenv('DISCORD_TOKEN')
