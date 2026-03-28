@@ -173,19 +173,22 @@ async def on_ready():
         for channel in guild.text_channels:
             if channel.name == CANALE_LAVORO:
 
-                # controlla se esiste già
+                trovato = False
+
                 async for msg in channel.history(limit=20):
                     if msg.author == bot.user:
-                        return
+                        trovato = True
+                        break
 
-                embed = discord.Embed(
-                    title="📋 TIMBRATURA LAVORO",
-                    description="Clicca i bottoni sotto per iniziare o finire il turno",
-                    color=discord.Color.blue()
-                )
+                if not trovato:
+                    embed = discord.Embed(
+                        title="📋 TIMBRATURA LAVORO",
+                        description="Clicca i bottoni sotto per iniziare o finire il turno",
+                        color=discord.Color.blue()
+                    )
 
-                await channel.send(embed=embed, view=LavoroView())
-                print("✅ Pannello creato!")
+                    await channel.send(embed=embed, view=LavoroView())
+                    print("✅ Pannello creato!")
 
 # --- AVVIO ---
 TOKEN = os.getenv('DISCORD_TOKEN')
